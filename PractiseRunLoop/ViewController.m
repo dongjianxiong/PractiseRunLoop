@@ -8,32 +8,122 @@
 
 #import "ViewController.h"
 
-@interface ViewController ()
+@interface ViewController ()<UITableViewDelegate, UITableViewDataSource>
 
 @property(nonatomic,strong) NSThread *myThread;
 @property(nonatomic,assign) BOOL runLoopThreadDidFinishFlag;
 @property(nonatomic,strong) dispatch_source_t timer;
+@property(nonatomic, strong) UITableView *tableView;
+
+@property(nonatomic,strong) NSString *lastMode;
+@property(nonatomic,assign) int  lastActivity;
 @end
 
 @implementation ViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // Do any additional setup after loading the view, typically from a nib.
     
-    // [self simplePractiseBackGround];
-    // [self simplePractiseMain];
+    CFRunLoopRef runloop = CFRunLoopGetCurrent();
+//    CFRunLoopSourceContext context = {0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+//
+//    CFRunLoopSourceRef source = CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &context);
+//    CFRunLoopAddSource(runloop, source, kCFRunLoopCommonModes);
+    CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, kCFRunLoopAllActivities, YES, 0, ^(CFRunLoopObserverRef observer, CFRunLoopActivity activity) {
+//        if (![self.lastMode isEqualToString:[[NSRunLoop currentRunLoop] currentMode]]) {
+//            NSLog(@"lastMode:%@,lastActivity:%@",self.lastMode,[self stringWithActivity:self.lastActivity]);
+//            NSLog(@"currentMode:%@,currentActivity:%@",[[NSRunLoop currentRunLoop] currentMode],[self stringWithActivity:activity]);
+//
+//        }
+//        NSLog(@"lastMode:%@,lastActivity:%@",self.lastMode,[self stringWithActivity:self.lastActivity]);
+        NSLog(@"currentMode:%@,currentActivity:%@",[[NSRunLoop currentRunLoop] currentMode],[self stringWithActivity:activity]);
+        if (activity == kCFRunLoopExit) {
+            NSLog(@"lastActivity:%@",[self stringWithActivity:self.lastActivity]);
+        }
+        self.lastMode = [[NSRunLoop currentRunLoop] currentMode];
+        self.lastActivity = activity;
+    });
+    CFRunLoopAddObserver(runloop, observer, kCFRunLoopCommonModes);
+//    CFRunLoopRun();
+//    
+//    self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds];
+//    self.tableView.delegate = self;
+//    self.tableView.dataSource = self;
+//    self.view.backgroundColor = [UIColor redColor];
+//    [self.view addSubview:self.tableView];
+    // Do any additional setup after loading the view, typically from a nib.
+
+//     [self simplePractiseBackGround];
+//     [self simplePractiseMain];
     
     // [self tryPerformSelectorOnMianThread];
     // [self tryPerformSelectorOnBackGroundThread];
     
     // [self alwaysLiveBackGoundThread];
-    // [self tryTimerOnMainThread];
+//     [self tryTimerOnMainThread];
     // [self tryTimerOnBackGrondThread];
     
-    [self runLoopAddDependance];
-    [self gcdTimer];
+//    [self runLoopAddDependance];
+//    [self gcdTimer];
     
+//    CFRunLoopWakeUp(runloop);
+}
+
+- (NSString *)stringWithActivity:(CFRunLoopActivity)activity
+{
+    NSString *str = nil;
+    switch (activity) {
+        case kCFRunLoopBeforeTimers:
+            str = [NSString stringWithFormat:@"kCFRunLoopBeforeTimers:%@",@(activity)];
+            break;
+        case kCFRunLoopBeforeSources:
+            str = [NSString stringWithFormat:@"kCFRunLoopBeforeSources:%@",@(activity)];
+            break;
+        case kCFRunLoopBeforeWaiting:
+            str = [NSString stringWithFormat:@"kCFRunLoopBeforeWaiting:%@",@(activity)];
+            break;
+        case kCFRunLoopAfterWaiting:
+            str = [NSString stringWithFormat:@"kCFRunLoopAfterWaiting:%@",@(activity)];
+            break;
+        case kCFRunLoopExit:
+            str = [NSString stringWithFormat:@"kCFRunLoopExit:%@",@(activity)];
+            break;
+        case kCFRunLoopEntry:
+            str = [NSString stringWithFormat:@"kCFRunLoopEntry:%@",@(activity)];
+            break;
+        default:
+            
+            break;
+    }
+    return str;
+}
+
+- (void)viewWillAppear:(BOOL)animated
+{
+    [super viewWillAppear:animated];
+//    [self.tableView reloadData];
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
+{
+    return 100;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    static NSString *cellId = @"cellID";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:cellId];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cellId];
+    }
+    cell.textLabel.text = [NSString stringWithFormat:@"%@",@(indexPath.row)];
+    return cell;
+}
+
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
+    
+    NSLog(@"%@",self.myThread);
+    [self performSelector:@selector(doBackGroundThreadWork) onThread:self.myThread withObject:nil waitUntilDone:NO];
 }
 
 - (void)simplePractiseMain{
@@ -54,21 +144,21 @@
 }
 - (void)simplePractiseBackGround{
 
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-      
+ dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         while (1) {
-            
+
+//
             NSPort *macPort = [NSPort port];
-            NSLog(@"while begin");
+//            NSLog(@"while begin");
             NSRunLoop *subRunLoop = [NSRunLoop currentRunLoop];
             [subRunLoop addPort:macPort forMode:NSDefaultRunLoopMode];
             [subRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
+            [subRunLoop run];
             NSLog(@"while end");
             NSLog(@"%@",subRunLoop);
             
         }
-        
-        
+
     });
 
 }
@@ -83,8 +173,6 @@
 
     NSLog(@"execute %s",__func__);
     // print: execute -[ViewController mainThreadMethod]
-    
-
 }
 
 - (void)tryPerformSelectorOnBackGroundThread{
@@ -115,22 +203,19 @@ dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
     NSLog(@"my thread run");
     
 }
-- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
 
-    NSLog(@"%@",self.myThread);
-    [self performSelector:@selector(doBackGroundThreadWork) onThread:self.myThread withObject:nil waitUntilDone:NO];
-}
 - (void)doBackGroundThreadWork{
 
     NSLog(@"do some work %s",__FUNCTION__);
-    
 }
+
 - (void)tryTimerOnMainThread{
 
     NSTimer *myTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 target:self selector:@selector(timerAction) userInfo:nil repeats:YES];
     [myTimer fire];
     
 }
+
 - (void)tryTimerOnBackGrondThread{
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -147,6 +232,7 @@ dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 }
 - (void)timerAction{
 
+//    sleep(2);
     NSLog(@"timer action");
 }
 - (void)runLoopAddDependance{
